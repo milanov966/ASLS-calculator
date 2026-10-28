@@ -11,19 +11,20 @@
 #include <string>
 #include <vector>
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 using namespace std;
 
 // ===================== Дърво на израза =====================
-enum class T { VAR, CONST, NOT, AND, OR };
-struct Node { T t = T::CONST; char v = 0; bool c = false; vector<Node> k; };
+enum class T { VAR, CNST, NOT, AND, OR };
+struct Node { T t = T::CNST; char v = 0; bool c = false; vector<Node> k; };
 
 static bool g_over = false;                 // стил на инверсията: false = !a, true = a̅
 static const string MARK = "\xCC\x85";      // комбиниращ надчерт U+0305
 
 Node mkVar(char v) { Node n; n.t = T::VAR; n.v = v; return n; }
-Node mkConst(bool c) { Node n; n.t = T::CONST; n.c = c; return n; }
+Node mkConst(bool c) { Node n; n.t = T::CNST; n.c = c; return n; }
 Node mkNot(const Node& x) { Node n; n.t = T::NOT; n.k.push_back(x); return n; }
 Node mkN(T t, vector<Node> ks) {
     if (ks.empty()) return mkConst(t == T::AND);
@@ -32,7 +33,7 @@ Node mkN(T t, vector<Node> ks) {
 }
 Node neg(const Node& n) {
     if (n.t == T::NOT) return n.k[0];
-    if (n.t == T::CONST) return mkConst(!n.c);
+    if (n.t == T::CNST) return mkConst(!n.c);
     return mkNot(n);
 }
 T other(T op) { return op == T::AND ? T::OR : T::AND; }
@@ -40,10 +41,10 @@ T other(T op) { return op == T::AND ? T::OR : T::AND; }
 string str(const Node& n) {
     switch (n.t) {
     case T::VAR: return string(1, n.v);
-    case T::CONST: return n.c ? "1" : "0";
+    case T::CNST: return n.c ? "1" : "0";
     case T::NOT: {
         const Node& x = n.k[0];
-        bool simple = x.t == T::VAR || x.t == T::NOT || x.t == T::CONST;
+        bool simple = x.t == T::VAR || x.t == T::NOT || x.t == T::CNST;
         string s = str(x);
         if (g_over) return (simple ? s : "(" + s + ")") + MARK;
         return "!" + (simple ? s : "(" + s + ")");
@@ -75,7 +76,7 @@ string P(const Node& n) {  // със скоби, ако е съставен
 string key(const Node& n) {
     switch (n.t) {
     case T::VAR: return string(1, n.v);
-    case T::CONST: return n.c ? "1" : "0";
+    case T::CNST: return n.c ? "1" : "0";
     case T::NOT: return "~" + key(n.k[0]);
     default: {
         vector<string> ks;
@@ -94,7 +95,7 @@ void collectVars(const Node& n, set<char>& s) {
 bool eval(const Node& n, const bool* a) {
     switch (n.t) {
     case T::VAR: return a[(int)n.v];
-    case T::CONST: return n.c;
+    case T::CNST: return n.c;
     case T::NOT: return !eval(n.k[0], a);
     case T::AND: for (auto& x : n.k) if (!eval(x, a)) return false; return true;
     case T::OR: for (auto& x : n.k) if (eval(x, a)) return true; return false;
@@ -176,7 +177,7 @@ bool rDNeg(Node& n, string& law) {
     return false;
 }
 bool rNotConst(Node& n, string& law) {
-    if (n.t == T::NOT && n.k[0].t == T::CONST) {
+    if (n.t == T::NOT && n.k[0].t == T::CNST) {
         string b = str(n); Node t = mkConst(!n.k[0].c); n = t;
         law = "Отрицание на константа: " + b + " = " + str(n); return true;
     }
@@ -206,11 +207,11 @@ Rule rConst(T op) {
     return [op](Node& n, string& law) {
         if (n.t != op) return false;
         bool ident = (op == T::AND), absb = !ident, hasAbs = false, hasId = false;
-        for (auto& x : n.k) if (x.t == T::CONST) { if (x.c == absb) hasAbs = true; else hasId = true; }
+        for (auto& x : n.k) if (x.t == T::CNST) { if (x.c == absb) hasAbs = true; else hasId = true; }
         if (!hasAbs && !hasId) return false;
         string b = str(n);
         if (hasAbs) n = mkConst(absb);
-        else { vector<Node> ks; for (auto& x : n.k) if (x.t != T::CONST) ks.push_back(x); n = mkN(op, ks); }
+        else { vector<Node> ks; for (auto& x : n.k) if (x.t != T::CNST) ks.push_back(x); n = mkN(op, ks); }
         law = string(op == T::AND ? "Закони x*0=0 и x*1=x: " : "Закони x+1=1 и x+0=x: ") + b + " = " + str(n);
         return true;
     };
@@ -288,7 +289,7 @@ Rule rGenAbs(T op) {
         if (n.t != op) return false;
         T in = other(op);
         for (size_t i = 0; i < n.k.size(); ++i) {
-            if (n.k[i].t == T::CONST) continue;
+            if (n.k[i].t == T::CNST) continue;
             string nk = key(neg(n.k[i]));
             for (size_t j = 0; j < n.k.size(); ++j) {
                 if (i == j || n.k[j].t != in || n.k[j].k.size() < 2) continue;
@@ -393,7 +394,7 @@ string join(const vector<int>& v) { string s; for (size_t i = 0; i < v.size(); +
 struct Circ { vector<string> g; set<string> seen; };
 string build(const Node& n, Circ& c) {
     switch (n.t) {
-    case T::VAR: case T::CONST: return str(n);
+    case T::VAR: case T::CNST: return str(n);
     case T::NOT: {
         string x = build(n.k[0], c), out = str(n);
         if (c.seen.insert(out).second) c.g.push_back("НЕ  (" + x + ")  =>  " + out);
@@ -416,7 +417,7 @@ void tree(const Node& n, const string& pre, bool last, bool root) {
     string name;
     switch (n.t) {
     case T::VAR: name = string("вход ") + n.v; break;
-    case T::CONST: name = string("константа ") + (n.c ? "1" : "0"); break;
+    case T::CNST: name = string("константа ") + (n.c ? "1" : "0"); break;
     case T::NOT: name = "НЕ"; break; case T::AND: name = "И"; break; case T::OR: name = "ИЛИ"; break;
     }
     cout << pre << (root ? "" : (last ? "└─ " : "├─ ")) << name << "\n";
@@ -498,7 +499,7 @@ vector<Cl> forms(const Node& n, bool cnf, const vector<char>& vars) {
     switch (n.t) {
     case T::VAR: return {{1u << vidx(vars, n.v), 0}};
     case T::NOT: return {{0, 1u << vidx(vars, n.k[0].v)}};
-    case T::CONST: return (cnf ? !n.c : n.c) ? vector<Cl>{{0, 0}} : vector<Cl>{};
+    case T::CNST: return (cnf ? !n.c : n.c) ? vector<Cl>{{0, 0}} : vector<Cl>{};
     default: break;
     }
     if (n.t == outer) { vector<Cl> r; for (auto& x : n.k) { auto f = forms(x, cnf, vars); r.insert(r.end(), f.begin(), f.end()); } return r; }
