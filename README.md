@@ -2,12 +2,17 @@
 
 Конзолно приложение за решаване на задачи с операциите **инверсия, конюнкция и дезюнкция**.
 
-## Компилиране
+## Файлове
+- `core.h` – цялата логика (парсер, закони, таблици)
+- `gui.cpp` – Windows прозоречно приложение (Win32, без външни библиотеки)
+- `main.cpp` – конзолна версия
+
+## Компилиране (Windows, MinGW)
 ```
-g++ -std=c++17 -O2 -o logic main.cpp
-./logic
+g++ -std=c++17 -O2 -static -static-libgcc -static-libstdc++ -mwindows gui.cpp -o ASLS-calculator.exe
 ```
-или `cmake -B build && cmake --build build`.
+Или стартирайте `build.bat`. Конзолната версия: `g++ -std=c++17 -O2 main.cpp -o logic`.
+Файловете трябва да са записани в UTF-8.
 
 ## Записване на изрази
 | Операция | Запис |
